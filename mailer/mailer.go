@@ -8,6 +8,10 @@ import (
 // Mailer implements app.Mailer
 type Mailer struct{}
 
+type MailerInterface interface {
+	Send(e types.Email) error
+}
+
 func New() *Mailer {
 	return &Mailer{}
 }

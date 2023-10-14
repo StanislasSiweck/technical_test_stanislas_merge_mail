@@ -12,13 +12,12 @@ import (
 // Scheduler holds the logic for scheduling emails send.
 type Scheduler struct {
 	db     db.DB
-	mailer *mailer.Mailer
-
-	stop time.Ticker
+	mailer mailer.MailerInterface
+	stop   time.Ticker
 }
 
 // New returns a new Scheduler.
-func New(db db.DB, mailer *mailer.Mailer) *Scheduler {
+func New(db db.DB, mailer mailer.MailerInterface) *Scheduler {
 	return &Scheduler{
 		db:     db,
 		mailer: mailer,
@@ -40,40 +39,51 @@ func (s *Scheduler) Start(pause time.Duration) {
 	s.stop = *time.NewTicker(pause)
 
 	for range s.stop.C {
-		emails, err := s.db.FindPendingEmails()
-		log.Printf("Start merge and send %v emails", len(emails))
-		if err != nil {
-			continue
-		}
-
-		emailsByRecipient := make(map[string]types.Email)
-		for _, email := range emails {
-
-			emailByRecipient, ok := emailsByRecipient[email.Recipient]
-			if ok {
-				// utilisation des tr dans l'idée de faire une liste
-				emailByRecipient.Body += "<tr>" + email.Body + "</tr>"
-				emailByRecipient.Subject += ";" + email.Subject
-			} else {
-				email.Body = "<tr>" + email.Body + "</tr>"
-				emailByRecipient = email
-			}
-
-			emailsByRecipient[email.Recipient] = emailByRecipient
-		}
-
-		for _, email := range emailsByRecipient {
-			err = s.mailer.Send(email)
-			if err != nil {
-				if err = s.db.PendingEmailsToError(err, email.Recipient); err != nil {
-					log.Printf("Error while updating email status to error: %v", err)
-				}
-			}
-		}
-
-		if err = s.db.PendingEmailsToValid(); err != nil {
-			log.Printf("Error while updating email status to valid: %v", err)
-		}
+		_ = s.MergeAndSendEmails()
 		s.stop.Reset(pause)
 	}
+}
+
+func (s *Scheduler) MergeAndSendEmails() error {
+	emails, err := s.db.FindPendingEmails()
+	log.Printf("Start merge and send %v emails", len(emails))
+	if err != nil {
+		return err
+	}
+
+	emailsByRecipient := make(map[string]types.Email)
+	for _, email := range emails {
+
+		emailByRecipient, ok := emailsByRecipient[email.Recipient]
+		if ok {
+			// utilisation des tr dans l'idée de faire une liste
+			emailByRecipient.Body += "<tr>" + email.Body + "</tr>"
+			emailByRecipient.Subject += ";" + email.Subject
+		} else {
+			email.Body = "<tr>" + email.Body + "</tr>"
+			emailByRecipient = email
+		}
+
+		emailsByRecipient[email.Recipient] = emailByRecipient
+	}
+
+	var errEnd error
+	for _, email := range emailsByRecipient {
+		err = s.mailer.Send(email)
+		if err != nil {
+			if err = s.db.PendingEmailsToError(err, email.Recipient); err != nil {
+				errEnd = err
+			}
+		}
+	}
+	if errEnd != nil {
+		return errEnd
+	}
+
+	if err = s.db.PendingEmailsToValid(); err != nil {
+		log.Printf("Error while updating email status to valid: %v", err)
+		return err
+	}
+
+	return nil
 }

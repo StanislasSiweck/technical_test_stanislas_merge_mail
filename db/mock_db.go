@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-type dbMock struct {
+type mockDb struct {
 	emails []types.Email
 	mu     sync.Mutex
 
@@ -20,23 +20,23 @@ type MockFunction struct {
 }
 
 func NewMock(t MockFunction) (DB, error) {
-	return &dbMock{
+	return &mockDb{
 		MockFunction: t,
 	}, nil
 }
 
-func (db *dbMock) SaveEmail(e *types.Email) error {
+func (db *mockDb) SaveEmail(e *types.Email) error {
 	return db.MockFunction.SaveEmail(e)
 }
 
-func (db *dbMock) FindPendingEmails() (emails []types.Email, err error) {
+func (db *mockDb) FindPendingEmails() (emails []types.Email, err error) {
 	return db.MockFunction.FindPendingEmails()
 }
 
-func (db *dbMock) PendingEmailsToError(err error, recipient string) error {
+func (db *mockDb) PendingEmailsToError(err error, recipient string) error {
 	return db.MockFunction.PendingEmailsToError(err, recipient)
 }
 
-func (db *dbMock) PendingEmailsToValid() error {
+func (db *mockDb) PendingEmailsToValid() error {
 	return db.MockFunction.PendingEmailsToValid()
 }
