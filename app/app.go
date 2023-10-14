@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"gitlab.com/seqone/mailtick/types"
+	"io"
 	"net/http"
 
 	"gitlab.com/seqone/mailtick/db"
@@ -25,6 +27,8 @@ func (a *App) Listen(addr string) error {
 	mux := http.NewServeMux()
 	a.srv = &http.Server{Addr: addr, Handler: mux}
 
+	// Peux étre ajouter un middleware pour gérer l'accès à cette route (authentification)
+	// Pas trop vue de consigne sur ce point
 	mux.HandleFunc("/mail", handleError(a.handleMail))
 
 	return a.srv.ListenAndServe()
@@ -40,9 +44,24 @@ func (a *App) Shutdown() {
 func (a *App) handleMail(w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case http.MethodPost:
-		// TODO get request body and transform into `types.Email`
-		// Then call `a.db.SaveEmail()` to save the received Email
-		return fmt.Errorf("not implemented")
+
+		bytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			return errHTTP{code: http.StatusBadRequest, cause: err}
+		}
+
+		var email types.Email
+		err = json.Unmarshal(bytes, &email)
+		if err != nil {
+			return errHTTP{code: http.StatusBadRequest, cause: err}
+		}
+
+		err = a.db.SaveEmail(&email)
+		if err != nil {
+			return errHTTP{code: http.StatusInternalServerError, cause: err}
+		}
+
+		return nil
 	}
 	return nil
 }

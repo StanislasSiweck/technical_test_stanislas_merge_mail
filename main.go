@@ -45,5 +45,4 @@ func main() {
 	<-c
 	// Ensure graceful shutdown
 	app.Shutdown()
-	scheduler.Stop()
 }
