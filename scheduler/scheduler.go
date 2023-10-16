@@ -71,7 +71,9 @@ func (s *Scheduler) MergeAndSendEmails() error {
 	for _, email := range emailsByRecipient {
 		err = s.mailer.Send(email)
 		if err != nil {
+			log.Printf("Error while sending email: %v", err)
 			if err = s.db.PendingEmailsToError(err, email.Recipient); err != nil {
+				log.Printf("Error while updating email status to error: %v", err)
 				errEnd = err
 			}
 		}
